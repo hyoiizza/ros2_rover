@@ -21,10 +21,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE. -->
 <robot name="all_sensors" xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <!-- Imu -->
-  <xacro:include filename="$(find rover_description)/urdf/sensors/imu.urdf.xacro" />
-  <!-- Hokuyo -->
-  <xacro:include filename="$(find rover_description)/urdf/sensors/hokuyo.urdf.xacro" />
-  <!-- Hokuyo -->
-  <xacro:include filename="$(find rover_description)/urdf/sensors/asus_xtion.urdf.xacro" />
+  <!-- IMU: Adafruit BNO085 9-DOF -->
+  <xacro:include filename="$(find rover_description)/urdf/sensors/bno085.urdf.xacro" />
+  <!-- 2D lidar: Slamtec RPLIDAR C1 -->
+  <xacro:include filename="$(find rover_description)/urdf/sensors/rplidar_c1.urdf.xacro" />
+  <!-- RGB-D camera: Orbbec Gemini 335 -->
+  <xacro:include filename="$(find rover_description)/urdf/sensors/gemini_335.urdf.xacro" />
 </robot>

@@ -1,0 +1,82 @@
+# Orbbec Gemini 335 - parameters for the OrbbecSDK_ROS2 wrapper.
+#
+# This file is handed to gemini_330_series.launch.py through its
+# `config_file_path` argument. That launch file builds a flat dict from all of
+# its DeclareLaunchArgument defaults and then overrides it with the keys found
+# here, so this YAML is FLAT: no node name, no `ros__parameters:` block, and
+# keys that the launch file does not declare are silently ignored.
+#
+# Datasheet: depth FOV 90x65 deg, RGB FOV 86x55 deg, depth 0.1-20 m
+# (optimal 0.26-3 m), 50 mm baseline, depth up to 1280x800@30,
+# color up to 1920x1080@30.
+
+# --- Device selection ---------------------------------------------------
+# Leave empty to grab the first Gemini found. With more than one Orbbec
+# camera on the rover, pin this one down with its serial number
+# (`ros2 run orbbec_camera list_devices_node`) or its USB topology path.
+serial_number: ""
+usb_port: ""
+device_num: 1
+
+# --- Color stream -------------------------------------------------------
+# 848x480 keeps RGB-D odometry affordable on an SBC while still covering the
+# full 86 x 55 deg color FOV (848x480 at 86 deg horizontal => ~55 deg vertical,
+# which matches the datasheet).
+enable_color: true
+color_width: 848
+color_height: 480
+# 15 fps (was 30): rtabmap consumes 1 Hz and segmentation at most 10 Hz, and the
+# extra frames only added Jetson load and camera latency.
+color_fps: 15
+# Let the driver choose a decodable color format. MJPG can fail to decode on
+# Jetson even though the color topic is advertised.
+color_format: "ANY"
+
+# --- Depth stream -------------------------------------------------------
+enable_depth: true
+depth_width: 848
+depth_height: 480
+depth_fps: 15   # was 30, see color_fps
+depth_format: "Y16"
+# Align depth to the color frame: rtabmap_odom/rtabmap subscribe to
+# rgb + depth + camera_info assuming a single (color) intrinsic.
+depth_registration: true
+enable_frame_sync: true
+
+# --- IR streams ---------------------------------------------------------
+# Not used; disabling them saves USB bandwidth.
+enable_left_ir: false
+enable_right_ir: false
+
+# --- Point cloud --------------------------------------------------------
+# Off (was true): nothing subscribes. rtabmap and rover_semantic use the depth
+# image, and the nav2 voxel_layer that would read /camera/depth/points is not in
+# the costmap plugin list. Turn enable_point_cloud back on together with it.
+enable_point_cloud: false
+enable_colored_point_cloud: false
+ordered_pc: true
+
+# --- IMU ----------------------------------------------------------------
+# The rover uses the BNO085 instead (rover_bringup/config/bno085.yaml).
+enable_accel: false
+enable_gyro: false
+enable_sync_output_accel_gyro: false
+
+# --- TF -----------------------------------------------------------------
+# The camera frames (camera_link, camera_{color,depth}_{frame,optical_frame})
+# come from rover_description/urdf/sensors/gemini_335.urdf.xacro via
+# robot_state_publisher. Letting the driver publish them too would give TF
+# two publishers for the same edges.
+publish_tf: false
+tf_publish_rate: 0.0
+
+# --- Depth quality ------------------------------------------------------
+device_preset: "Default"
+enable_soft_filter: true
+enable_noise_removal_filter: true
+enable_ldp: true
+enable_laser: true
+
+# --- Misc ---------------------------------------------------------------
+log_level: "error"
+enable_heartbeat: false

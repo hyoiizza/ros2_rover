@@ -25,6 +25,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -36,9 +37,13 @@ namespace lx16a {
 class MotorController {
 private:
   std::unique_ptr<LX16A> lx16a;
+  // Servos that never get a command (broken hardware, e.g. robot2 servo 6).
+  std::set<uint8_t> disabled;
+  bool enabled(uint8_t servo_id) const { return this->disabled.count(servo_id) == 0; }
 
 public:
-  MotorController(std::string serial_port, unsigned int baud_rate);
+  MotorController(std::string serial_port, unsigned int baud_rate,
+                  std::vector<int> disabled_servo_ids = {});
 
   void corner_to_position(std::vector<int> corner_ticks);
   void send_motor_duty(std::vector<int> drive_ticks);

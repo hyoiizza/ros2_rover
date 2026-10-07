@@ -36,11 +36,22 @@ class ControllerNode : public rclcpp::Node {
 public:
   ControllerNode();
   void callback(const rover_msgs::msg::MotorsCommand::SharedPtr msg);
+  /// Stop the drive motors when /motors_command goes silent.
+  void watchdog_callback();
   void shutdown();
 
 private:
   std::unique_ptr<lx16a::MotorController> motor_controller;
   rclcpp::Subscription<rover_msgs::msg::MotorsCommand>::SharedPtr subscription;
+
+  // Watchdog: whoever was driving (teleop or Nav2) can die, lose its network
+  // link or be killed without ever sending a zero command. The servos hold the
+  // last duty they were given, so the rover would keep rolling. This stops the
+  // drive motors if no command arrives for command_timeout seconds.
+  rclcpp::TimerBase::SharedPtr watchdog_timer;
+  rclcpp::Time last_command_time;
+  double command_timeout;
+  bool motors_stopped;
 };
 
 } // namespace motor_controller

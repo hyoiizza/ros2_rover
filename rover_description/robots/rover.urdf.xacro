@@ -176,17 +176,36 @@
     <xacro:bogie lat_label="left" reflect="1"/>
     <xacro:bogie lat_label="right" reflect="-1"/>
     <!-- sensors -->
-    <xacro:sensor_hokuyo prefix="laser" parent="base_link" min_angle="-1.0" max_angle="1.0">
-        <origin xyz="0.17 0 0.005" rpy="0 0 0"/>
-    </xacro:sensor_hokuyo>
-    <xacro:sensor_imu prefix="imu" parent="base_link">
-        <!-- <origin xyz="-0.32 0 0.05" rpy="0 0.5 0"/> -->
-        <origin xyz="0 0 -0.04" rpy="0 0 0"/>
-    </xacro:sensor_imu>
-    <xacro:sensor_asus_xtion prefix="camera" parent="base_link">
-        <origin xyz="0.215 0 0.065" rpy="0 0.4 0"/>
-        <!-- <origin xyz="0.212 0 0.065" rpy="0 0 0"/> -->
-    </xacro:sensor_asus_xtion>
+    <!--
+      MOUNTING POSES LIVE HERE AND ONLY HERE.
+
+      The <origin> of each sensor below is the single source of truth for
+      where that sensor sits on the rover. Everything downstream (rtabmap,
+      robot_localization, nav2, RViz) works off TF, so changing a pose needs
+      no edit anywhere else.
+
+      Two things that are NOT poses and do live elsewhere:
+        * Link names (laser_link, imu_link, camera_*) are referenced by
+          frame_id in rover_bringup/config/*.yaml - keep them as they are.
+        * If the RPLIDAR C1 ends up mounted upside down, set inverted: true
+          in rover_bringup/config/rplidar_c1.yaml as well; the driver, not
+          the URDF, is what reverses the scan direction on real hardware.
+    -->
+
+    <!-- Slamtec RPLIDAR C1: full 360 deg scan, 0.05-12 m -->
+    <xacro:sensor_rplidar_c1 prefix="laser" parent="base_link">
+        <origin xyz="0.17 -0.047 0.033" rpy="0 0 3.14159265"/>
+    </xacro:sensor_rplidar_c1>
+
+    <!-- Adafruit BNO085 9-DOF IMU -->
+    <xacro:sensor_bno085 prefix="imu" parent="base_link">
+        <origin xyz="-0.17 0 0" rpy="0 0 -1.5708"/>
+    </xacro:sensor_bno085>
+
+    <!-- Orbbec Gemini 335 RGB-D camera -->
+    <xacro:sensor_gemini_335 prefix="camera" parent="base_link">
+        <origin xyz="0.17 0.047 0.205" rpy="0 0 0"/>
+    </xacro:sensor_gemini_335>
     <!-- wheels -->
     <xacro:corner_link lon_label="front" lat_label="left" reflect="1"/>
     <xacro:corner_link lon_label="front" lat_label="right" reflect="-1"/>

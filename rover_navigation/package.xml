@@ -17,6 +17,9 @@
   <depend>navigation2</depend>
   <depend>nav2_smac_planner</depend>
   <depend>nav2_regulated_pure_pursuit_controller</depend>
+  <!-- navigating a saved map -->
+  <depend>nav2_amcl</depend>
+  <depend>nav2_map_server</depend>
   <export>
     <build_type>ament_cmake</build_type>
   </export>

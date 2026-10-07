@@ -111,7 +111,19 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
-        camera_frame:
+        camera_color_frame:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        camera_color_optical_frame:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        camera_depth_frame:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        camera_depth_optical_frame:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -150,15 +162,11 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
-        laser_base_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
         laser_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
+          Value: true
         left_bogie_link:
           Alpha: 1
           Show Axes: false
@@ -209,7 +217,7 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Best Effort
-        Value: /camera/image_raw
+        Value: /camera/color/image_raw
       Value: true
     - Class: rviz_default_plugins/TF
       Enabled: true
@@ -228,7 +236,13 @@ Visualization Manager:
           Value: true
         body_box_link:
           Value: true
-        camera_frame:
+        camera_color_frame:
+          Value: true
+        camera_color_optical_frame:
+          Value: true
+        camera_depth_frame:
+          Value: true
+        camera_depth_optical_frame:
           Value: true
         camera_link:
           Value: true
@@ -243,8 +257,6 @@ Visualization Manager:
         front_right_wheel_link:
           Value: true
         imu_link:
-          Value: true
-        laser_base_link:
           Value: true
         laser_link:
           Value: true
@@ -275,11 +287,13 @@ Visualization Manager:
             base_link:
               body_box_link: {}
               camera_link:
-                camera_frame: {}
+                camera_color_frame:
+                  camera_color_optical_frame: {}
+                camera_depth_frame:
+                  camera_depth_optical_frame: {}
               diff_brace_link: {}
               imu_link: {}
-              laser_base_link:
-                laser_link: {}
+              laser_link: {}
               left_rocker_link:
                 front_left_corner_link:
                   front_left_wheel_link: {}

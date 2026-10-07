@@ -6,8 +6,14 @@ find_package(ament_cmake REQUIRED)
 
 # install the launch directory
 install(DIRECTORY
-  launch config
+  launch config udev
   DESTINATION share/${PROJECT_NAME}/
+)
+
+# helper scripts, installed executable
+install(PROGRAMS
+  scripts/list_usb_serial.sh
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 ament_package()

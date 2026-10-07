@@ -1,0 +1,20 @@
+# Slamtec RPLIDAR C1 - driven by the sllidar_ros2 driver (sllidar_node).
+#
+# Datasheet: 360 deg DTOF, 0.05-12 m, 8-12 Hz (typ. 10 Hz @ 600 RPM),
+# 5000 samples/s (0.72 deg angular resolution @ 10 Hz), TTL UART @ 460800 baud.
+sllidar_node:
+  ros__parameters:
+    channel_type: "serial"
+    # /dev/ttyUSB* numbering follows enumeration order, not the physical USB
+    # port, so it is not stable across boots - and the rover has a second
+    # USB-serial device on the same bus (the LX-16A BusLinker), so the lidar
+    # is not guaranteed to be ttyUSB0. udev/99-rover-sensors.rules creates
+    # this symlink for the C1's CP2102 adapter; install those rules first
+    # (rover_service/install.sh does it) or this path will not exist.
+    serial_port: "/dev/rplidar"
+    serial_baudrate: 460800 # C1 is 460800, NOT the 115200 used by the A1
+    # Must match the lidar link in rover_description/urdf/sensors/rplidar_c1.urdf.xacro
+    frame_id: "laser_link"
+    inverted: false
+    angle_compensate: true
+    scan_mode: "Standard"

@@ -8,9 +8,14 @@
   <license>MIT</license>
   <buildtool_depend>ament_cmake</buildtool_depend>
   <depend>rover_motor_controller_cpp</depend>
-  <depend>joy_linux</depend>
-  <depend>teleop_twist_joy</depend>
-  <depend>urg_node</depend>
+  <!-- Manual driving: keyboard teleop -->
+  <depend>rover_teleop</depend>
+  <!-- Slamtec RPLIDAR C1 -->
+  <depend>sllidar_ros2</depend>
+  <!-- Orbbec Gemini 335 -->
+  <depend>orbbec_camera</depend>
+  <!-- Adafruit BNO085 9-DOF IMU -->
+  <depend>bno08x_driver</depend>
   <export>
     <build_type>ament_cmake</build_type>
   </export>

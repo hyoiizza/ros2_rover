@@ -30,37 +30,47 @@
 using namespace lx16a;
 
 MotorController::MotorController(std::string serial_port,
-                                 unsigned int baud_rate) {
+                                 unsigned int baud_rate,
+                                 std::vector<int> disabled_servo_ids) {
 
   this->lx16a = std::make_unique<LX16A>(LX16A(serial_port, baud_rate));
+  for (int id : disabled_servo_ids) {
+    this->disabled.insert(static_cast<uint8_t>(id));
+  }
 
-  this->lx16a->set_motor_mode(MOTOR_LEFT_FRONT, 0);
-  this->lx16a->set_motor_mode(MOTOR_LEFT_MIDDLE, 0);
-  this->lx16a->set_motor_mode(MOTOR_LEFT_BACK, 0);
-  this->lx16a->set_motor_mode(MOTOR_RIGHT_FRONT, 0);
-  this->lx16a->set_motor_mode(MOTOR_RIGHT_MIDDLE, 0);
-  this->lx16a->set_motor_mode(MOTOR_RIGHT_BACK, 0);
-  this->lx16a->set_servo_mode(SERVO_LEFT_FRONT);
-  this->lx16a->set_servo_mode(SERVO_RIGHT_FRONT);
-  this->lx16a->set_servo_mode(SERVO_LEFT_BACK);
-  this->lx16a->set_servo_mode(SERVO_RIGHT_BACK);
+  for (uint8_t id : {MOTOR_LEFT_FRONT, MOTOR_LEFT_MIDDLE, MOTOR_LEFT_BACK,
+                     MOTOR_RIGHT_FRONT, MOTOR_RIGHT_MIDDLE, MOTOR_RIGHT_BACK}) {
+    if (this->enabled(id)) {
+      this->lx16a->set_motor_mode(id, 0);
+    }
+  }
+  for (uint8_t id : {SERVO_LEFT_FRONT, SERVO_RIGHT_FRONT, SERVO_LEFT_BACK,
+                     SERVO_RIGHT_BACK}) {
+    if (this->enabled(id)) {
+      this->lx16a->set_servo_mode(id);
+    }
+  }
 }
 
 void MotorController::corner_to_position(std::vector<int> corner_ticks) {
-  this->lx16a->move_prepare(SERVO_LEFT_FRONT, corner_ticks[0], 0);
-  this->lx16a->move_prepare(SERVO_RIGHT_FRONT, corner_ticks[1], 0);
-  this->lx16a->move_prepare(SERVO_LEFT_BACK, corner_ticks[2], 0);
-  this->lx16a->move_prepare(SERVO_RIGHT_BACK, corner_ticks[3], 0);
+  const uint8_t ids[4] = {SERVO_LEFT_FRONT, SERVO_RIGHT_FRONT, SERVO_LEFT_BACK,
+                          SERVO_RIGHT_BACK};
+  for (int k = 0; k < 4; k++) {
+    if (this->enabled(ids[k])) {
+      this->lx16a->move_prepare(ids[k], corner_ticks[k], 0);
+    }
+  }
   this->lx16a->move_start(SERVO_ID_ALL);
 }
 
 void MotorController::send_motor_duty(std::vector<int> drive_ticks) {
-  this->lx16a->set_motor_mode(MOTOR_LEFT_FRONT, drive_ticks[0]);
-  this->lx16a->set_motor_mode(MOTOR_LEFT_MIDDLE, drive_ticks[1]);
-  this->lx16a->set_motor_mode(MOTOR_LEFT_BACK, drive_ticks[2]);
-  this->lx16a->set_motor_mode(MOTOR_RIGHT_FRONT, drive_ticks[3]);
-  this->lx16a->set_motor_mode(MOTOR_RIGHT_MIDDLE, drive_ticks[4]);
-  this->lx16a->set_motor_mode(MOTOR_RIGHT_BACK, drive_ticks[5]);
+  const uint8_t ids[6] = {MOTOR_LEFT_FRONT,  MOTOR_LEFT_MIDDLE,  MOTOR_LEFT_BACK,
+                          MOTOR_RIGHT_FRONT, MOTOR_RIGHT_MIDDLE, MOTOR_RIGHT_BACK};
+  for (int k = 0; k < 6; k++) {
+    if (this->enabled(ids[k])) {
+      this->lx16a->set_motor_mode(ids[k], drive_ticks[k]);
+    }
+  }
 }
 
 void MotorController::kill_motors() {

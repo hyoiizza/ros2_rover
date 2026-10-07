@@ -68,7 +68,9 @@ def generate_launch_description():
     motor_controller_device = LaunchConfiguration("motor_controller_device")
     declare_motor_controller_device_cmd = DeclareLaunchArgument(
         "motor_controller_device",
-        default_value="/dev/ttyUSB0",
+        # Stable symlink from rover_bringup/udev/99-rover-sensors.rules.
+        # A bare /dev/ttyUSB0 would race the RPLIDAR C1, which is also USB-serial.
+        default_value="/dev/lx16a",
         description="Motor controller device",
     )
 

@@ -1,7 +1,8 @@
 <?xml version="1.0" ?>
+
 <!-- # MIT License
 
-# Copyright (c) 2023 Miguel Ángel González Santamarta
+# Copyright (c) 2023  Miguel Ángel González Santamarta
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -20,40 +21,54 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE. -->
-<robot name="sensor_imu" xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <xacro:macro name="sensor_imu" params="prefix parent *origin">
+<!-- Adafruit BNO085 9-DOF Orientation IMU breakout (CEVA/Hillcrest BNO08x).
+     Breakout board 25.4 x 17.8 x 3 mm, driven over I2C by bno08x_driver.
+     Noise figures below come from the BNO080/BNO085 datasheet:
+       gyro  0.014 deg/s/sqrt(Hz) -> 2.4e-4 rad/s/sqrt(Hz)
+       accel 190 ug/sqrt(Hz)      -> 1.9e-3 m/s^2/sqrt(Hz)
+     scaled to the 100 Hz report rate configured in
+     rover_bringup/config/bno085.yaml.
+
+     Gazebo Classic version: published by libgazebo_ros_imu_sensor. -->
+<robot name="sensor_bno085" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="sensor_bno085" params="prefix parent *origin update_rate:=100">
+
     <joint name="${prefix}_joint" type="fixed">
-      <axis xyz="1 0 0"/>
-      <xacro:insert_block name="origin"/>
-      <parent link="${parent}"/>
-      <child link="${prefix}_link"/>
+      <axis xyz="1 0 0" />
+      <xacro:insert_block name="origin" />
+      <parent link="${parent}" />
+      <child link="${prefix}_link" />
     </joint>
+
     <link name="${prefix}_link">
       <inertial>
-        <mass value="0.001"/>
-        <origin rpy="0 0 0" xyz="0 0 0"/>
-        <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.000001" iyz="0" izz="0.0001"/>
+        <mass value="0.003" />
+        <origin rpy="0 0 0" xyz="0 0 0" />
+        <inertia ixx="8e-8" ixy="0" ixz="0" iyy="1.6e-7" iyz="0" izz="2.4e-7" />
       </inertial>
       <visual>
-        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <origin rpy="0 0 0" xyz="0 0 0" />
         <geometry>
-          <box size="0.03 0.02 0.01"/>
+          <box size="0.0254 0.0178 0.003" />
         </geometry>
         <material name="blue" />
       </visual>
       <collision>
-        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <origin rpy="0 0 0" xyz="0 0 0" />
         <geometry>
-          <box size=".001 .001 .001"/>
+          <box size="0.0254 0.0178 0.003" />
         </geometry>
       </collision>
     </link>
+
     <gazebo reference="${prefix}_link">
       <material>Gazebo/Blue</material>
     </gazebo>
+
     <gazebo reference="${prefix}_link">
-      <sensor name="imu_sensor" type="imu">
-        <plugin filename="libgazebo_ros_imu_sensor.so" name="imu_controller">
+      <sensor name="bno085" type="imu">
+        <plugin filename="libgazebo_ros_imu_sensor.so" name="${prefix}_controller">
           <ros>
             <remapping>~/out:=imu</remapping>
             <qos>
@@ -68,14 +83,14 @@
           <frame_name>${prefix}_link</frame_name>
         </plugin>
         <always_on>true</always_on>
-        <update_rate>200</update_rate>
+        <update_rate>${update_rate}</update_rate>
         <visualize>true</visualize>
         <imu>
           <angular_velocity>
             <x>
               <noise type="gaussian">
                 <mean>0.0</mean>
-                <stddev>2e-4</stddev>
+                <stddev>2.4e-3</stddev>
                 <bias_mean>0.0000075</bias_mean>
                 <bias_stddev>0.0000008</bias_stddev>
               </noise>
@@ -83,7 +98,7 @@
             <y>
               <noise type="gaussian">
                 <mean>0.0</mean>
-                <stddev>2e-4</stddev>
+                <stddev>2.4e-3</stddev>
                 <bias_mean>0.0000075</bias_mean>
                 <bias_stddev>0.0000008</bias_stddev>
               </noise>
@@ -91,7 +106,7 @@
             <z>
               <noise type="gaussian">
                 <mean>0.0</mean>
-                <stddev>2e-4</stddev>
+                <stddev>2.4e-3</stddev>
                 <bias_mean>0.0000075</bias_mean>
                 <bias_stddev>0.0000008</bias_stddev>
               </noise>
@@ -101,7 +116,7 @@
             <x>
               <noise type="gaussian">
                 <mean>0.0</mean>
-                <stddev>1.7e-2</stddev>
+                <stddev>1.9e-2</stddev>
                 <bias_mean>0.1</bias_mean>
                 <bias_stddev>0.001</bias_stddev>
               </noise>
@@ -109,7 +124,7 @@
             <y>
               <noise type="gaussian">
                 <mean>0.0</mean>
-                <stddev>1.7e-2</stddev>
+                <stddev>1.9e-2</stddev>
                 <bias_mean>0.1</bias_mean>
                 <bias_stddev>0.001</bias_stddev>
               </noise>
@@ -117,7 +132,7 @@
             <z>
               <noise type="gaussian">
                 <mean>0.0</mean>
-                <stddev>1.7e-2</stddev>
+                <stddev>1.9e-2</stddev>
                 <bias_mean>0.1</bias_mean>
                 <bias_stddev>0.001</bias_stddev>
               </noise>
@@ -126,5 +141,7 @@
         </imu>
       </sensor>
     </gazebo>
+
   </xacro:macro>
+
 </robot>

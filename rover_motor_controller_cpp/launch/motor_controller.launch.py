@@ -23,6 +23,7 @@
 
 from launch import LaunchDescription
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from launch.substitutions import LaunchConfiguration
 from launch.actions import DeclareLaunchArgument, SetEnvironmentVariable
 
@@ -68,8 +69,17 @@ def generate_launch_description():
     motor_controller_device = LaunchConfiguration("motor_controller_device")
     declare_motor_controller_device_cmd = DeclareLaunchArgument(
         "motor_controller_device",
-        default_value="/dev/ttyUSB0",
+        # Stable symlink from rover_bringup/udev/99-rover-sensors.rules.
+        # A bare /dev/ttyUSB0 would race the RPLIDAR C1, which is also USB-serial.
+        default_value="/dev/lx16a",  # /dev/ttyTHS1
         description="Motor controller device",
+    )
+
+    disabled_servo_ids = LaunchConfiguration("disabled_servo_ids")
+    declare_disabled_servo_ids_cmd = DeclareLaunchArgument(
+        "disabled_servo_ids",
+        default_value="",
+        description="Comma-separated LX-16A ids that get no commands (broken servo), e.g. '6' on robot2",
     )
 
     baud_rate = LaunchConfiguration("baud_rate")
@@ -102,7 +112,8 @@ def generate_launch_description():
         executable="controller_node",
         name="controller_node",
         parameters=[
-            {"motor_controller_device": motor_controller_device, "baud_rate": baud_rate}
+            {"motor_controller_device": motor_controller_device, "baud_rate": baud_rate,
+             "disabled_servo_ids": ParameterValue(disabled_servo_ids, value_type=str)}
         ],
     )
 
@@ -116,6 +127,7 @@ def generate_launch_description():
     ld.add_action(declare_speed_factor_cmd)
     ld.add_action(declare_motor_controller_device_cmd)
     ld.add_action(declare_baud_rate_cmd)
+    ld.add_action(declare_disabled_servo_ids_cmd)
 
     ld.add_action(vel_parser_node_cmd)
     ld.add_action(controller_node_cmd)

@@ -1,6 +1,6 @@
 # ros2_rover
 
-This is a ROS 2 (Humble) version of the [Sawppy the Rover](https://github.com/Roger-random/Sawppy_Rover). A [C++](./rover_motor_controller_cpp) version and a [Python](./rover_motor_controller) version of the lx16a controller are included. Besides, a [PS3 joy controller](./rover_bringup/launch/joy_teleop.launch.py) and a [hokuyo laser](./rover_bringup/launch/urg_node.launch.py) can be used.
+This is a ROS 2 (Humble) version of the [Sawppy the Rover](https://github.com/Roger-random/Sawppy_Rover). A [C++](./rover_motor_controller_cpp) version and a [Python](./rover_motor_controller) version of the lx16a controller are included. Manual driving uses a [keyboard teleop node](./rover_teleop/rover_teleop/teleop_keyboard_node.py). The following sensors are used: a [Slamtec RPLIDAR C1](./rover_bringup/launch/rplidar.launch.py) 2D lidar, an [Orbbec Gemini 335](./rover_bringup/launch/gemini_335.launch.py) RGB-D camera and an [Adafruit BNO085](./rover_bringup/launch/bno085.launch.py) 9-DOF IMU.
 
 <div align="center">
 
@@ -54,6 +54,41 @@ docker run -it --rm rover
 
 ```shell
 ros2 launch rover_bringup rover.launch.py
+```
+
+### Mapping and Navigation
+
+Driving runs entirely on the RPLIDAR C1. The Gemini 335 is reserved for the
+RGB-D vision map and is not in the navigation loop.
+
+Odometry comes from `rf2o_laser_odometry` (scan matching) fused with the BNO085
+in the EKF, because the LX-16A servos provide no usable wheel feedback.
+
+Build a map:
+
+```shell
+ros2 launch rover_bringup rover.launch.py
+ros2 launch rover_localization localization.launch.py          # slam:=mapping is the default
+ros2 run rover_teleop teleop_keyboard_node                     # drive it around
+ros2 run nav2_map_server map_saver_cli -f ~/maps/my_map
+```
+
+Navigate that map afterwards:
+
+```shell
+ros2 launch rover_bringup rover.launch.py
+ros2 launch rover_localization localization.launch.py slam:=off
+ros2 launch rover_navigation bringup.launch.py map:=$HOME/maps/my_map.yaml
+```
+
+Add `use_vision_map:=True` to the localization launch to also run rtabmap on the
+RGB-D camera. It publishes to `/rtabmap/map` and does not touch TF.
+
+In simulation both flows are driven from one launch file:
+
+```shell
+ros2 launch rover_gazebo moon.launch.py                        # maps live
+ros2 launch rover_gazebo moon.launch.py map:=$HOME/maps/my_map.yaml
 ```
 
 ### Linux Service

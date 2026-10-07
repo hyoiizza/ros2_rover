@@ -33,7 +33,7 @@ from launch.actions import (
 )
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.actions import PushRosNamespace
 from nav2_common.launch import RewrittenYaml
@@ -138,7 +138,7 @@ def generate_launch_description():
 
     cmd_vel_topic_cmd = DeclareLaunchArgument(
         "cmd_vel_topic",
-        default_value="cmd_vel",
+        default_value="cmd_vel_raw",
         description="cmd_vel topic (for remmaping)",
     )
 
@@ -164,6 +164,26 @@ def generate_launch_description():
         description="Nav2 controller (RPP or TEB)",
     )
 
+    # Saved map to navigate on. Leave empty while mapping: slam_toolbox
+    # (rover_localization) then provides /map and map -> odom instead of
+    # map_server + AMCL.
+    map_yaml_file = LaunchConfiguration("map")
+    map_cmd = DeclareLaunchArgument(
+        "map",
+        default_value="",
+        description="Full path to a saved map yaml. Empty means SLAM is providing the map.",
+    )
+
+    localization_cmd = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(os.path.join(launch_dir, "localization.launch.py")),
+        launch_arguments={
+            "map": map_yaml_file,
+            "use_sim_time": LaunchConfiguration("use_sim_time"),
+            "autostart": LaunchConfiguration("autostart"),
+        }.items(),
+        condition=IfCondition(PythonExpression(["'", map_yaml_file, "' != ''"])),
+    )
+
     nav2_cmd = OpaqueFunction(function=run_nav2, args=[planner, controller])
 
     # Create the launch description and populate
@@ -183,6 +203,10 @@ def generate_launch_description():
     ld.add_action(declare_use_respawn_cmd)
     ld.add_action(planner_cmd)
     ld.add_action(controller_cmd)
+    ld.add_action(map_cmd)
+
+    # map_server + AMCL, only when a saved map was given
+    ld.add_action(localization_cmd)
 
     # Add the actions to launch all of the navigation nodes
     ld.add_action(nav2_cmd)

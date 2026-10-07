@@ -22,7 +22,9 @@
 
 #define BOOST_BIND_NO_PLACEHOLDERS
 
+#include <chrono>
 #include <memory>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <sys/stat.h>
@@ -40,9 +42,13 @@ using namespace motor_controller;
 ControllerNode::ControllerNode() : rclcpp::Node("controller_node") {
 
   // declaring params
-  this->declare_parameter<std::string>("motor_controller_device",
-                                       "/dev/ttyUSB0");
+  this->declare_parameter<std::string>("motor_controller_device", "/dev/lx16a");
   this->declare_parameter<int>("baud_rate", 115200);
+  // Seconds without a /motors_command before the drive motors are stopped.
+  // 0 disables the watchdog.
+  this->declare_parameter<double>("command_timeout", 0.5);
+  // Comma-separated LX-16A ids that never get a command (broken servo), e.g. "6".
+  this->declare_parameter<std::string>("disabled_servo_ids", "");
 
   // getting params
   std::string motor_controller_device;
@@ -50,6 +56,8 @@ ControllerNode::ControllerNode() : rclcpp::Node("controller_node") {
 
   int baud_rate;
   this->get_parameter("baud_rate", baud_rate);
+
+  this->get_parameter("command_timeout", this->command_timeout);
 
   // Check if the device exists and is accessible
   struct stat device_stat;
@@ -85,19 +93,77 @@ ControllerNode::ControllerNode() : rclcpp::Node("controller_node") {
               "Motor controller device '%s' found and accessible",
               motor_controller_device.c_str());
 
+  std::string disabled_param;
+  this->get_parameter("disabled_servo_ids", disabled_param);
+  std::vector<int> disabled_ids;
+  std::stringstream ss(disabled_param);
+  for (std::string item; std::getline(ss, item, ',');) {
+    if (item.find_first_not_of(" \t") != std::string::npos) {
+      disabled_ids.push_back(std::stoi(item));
+    }
+  }
+  for (int id : disabled_ids) {
+    RCLCPP_WARN(this->get_logger(), "Servo %d disabled: it gets no commands", id);
+  }
+
   this->motor_controller = std::make_unique<lx16a::MotorController>(
-      lx16a::MotorController(motor_controller_device, baud_rate));
+      lx16a::MotorController(motor_controller_device, baud_rate, disabled_ids));
 
   // sub
   this->subscription =
       this->create_subscription<rover_msgs::msg::MotorsCommand>(
           "motors_command", 10, std::bind(&ControllerNode::callback, this, _1));
+
+  // watchdog
+  this->last_command_time = this->now();
+  this->motors_stopped = true;
+
+  if (this->command_timeout > 0.0) {
+    this->watchdog_timer = this->create_wall_timer(
+        std::chrono::milliseconds(100),
+        std::bind(&ControllerNode::watchdog_callback, this));
+    RCLCPP_INFO(this->get_logger(),
+                "Command watchdog armed: drive motors stop after %.2f s "
+                "without /motors_command",
+                this->command_timeout);
+  } else {
+    RCLCPP_WARN(this->get_logger(),
+                "Command watchdog DISABLED (command_timeout = 0). The rover "
+                "will keep driving if the commanding node dies.");
+  }
 }
 
 void ControllerNode::callback(
     const rover_msgs::msg::MotorsCommand::SharedPtr msg) {
+  this->last_command_time = this->now();
+
+  if (this->motors_stopped) {
+    RCLCPP_INFO(this->get_logger(), "Commands resumed");
+    this->motors_stopped = false;
+  }
+
   this->motor_controller->corner_to_position(msg->corner_motor);
   this->motor_controller->send_motor_duty(msg->drive_motor);
+}
+
+void ControllerNode::watchdog_callback() {
+  if (this->motors_stopped) {
+    return;
+  }
+
+  double elapsed = (this->now() - this->last_command_time).seconds();
+
+  if (elapsed < this->command_timeout) {
+    return;
+  }
+
+  // Only the drive motors are zeroed. The corner servos are left where they
+  // are: snapping the steering to centre while the rover still has momentum
+  // would be its own hazard.
+  RCLCPP_WARN(this->get_logger(),
+              "No /motors_command for %.2f s, stopping drive motors", elapsed);
+  this->motor_controller->send_motor_duty({0, 0, 0, 0, 0, 0});
+  this->motors_stopped = true;
 }
 
 void ControllerNode::shutdown() { this->motor_controller->kill_motors(); }

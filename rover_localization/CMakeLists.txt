@@ -10,4 +10,10 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}/
 )
 
+install(PROGRAMS
+  scripts/scan_self_filter.py
+  scripts/odom_stationary_gate.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 ament_package()

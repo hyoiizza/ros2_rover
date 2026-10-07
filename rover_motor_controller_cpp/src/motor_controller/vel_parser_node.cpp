@@ -23,6 +23,7 @@
 #define BOOST_BIND_NO_PLACEHOLDERS
 
 #include <algorithm>
+#include <cmath>
 #include <vector>
 
 #include "geometry_msgs/msg/twist.hpp"
@@ -50,6 +51,22 @@ VelParserNode::VelParserNode() : rclcpp::Node("vel_parser_node") {
   this->declare_parameter<float>("angular_limit", 1.0);
   this->declare_parameter<float>("angular_factor", 0.0);
 
+  // Turn in place when only a rotation is commanded (|linear.x| below the
+  // threshold). Without it a pure angular.z only steered the corner wheels:
+  // the drive speed sqrt(linear^2 + (angular * angular_factor)^2) was 0, so
+  // Nav2's rotate-to-heading never turned the rover and it never drove off.
+  this->declare_parameter<bool>("pivot_enabled", true);
+  this->declare_parameter<float>("pivot_linear_threshold", 0.02);
+  // Farthest wheel speed floor while pivoting, normalized [0, 100] like the
+  // linear speed. 50 (x speed_factor = 500) is what drives the rover well
+  // from the keyboard (linear 0.5); weaker commands barely move the servos.
+  this->declare_parameter<float>("pivot_min_speed", 50.0);
+  // Same floor for driving: when the fastest wheel of a non-zero command is
+  // below this, all wheels are scaled up together (the turn geometry stays).
+  // Nav2 sent 0.3 m/s on 0.55 m arcs = 100-300 servo units, which did not move
+  // the rover. 0 disables it.
+  this->declare_parameter<float>("min_drive_speed", 50.0);
+
   // getting params
   std::vector<double> hardware_distances;
   this->get_parameter("hardware_distances", hardware_distances);
@@ -61,6 +78,10 @@ VelParserNode::VelParserNode() : rclcpp::Node("vel_parser_node") {
   this->get_parameter("linear_limit", this->linear_limit);
   this->get_parameter("angular_limit", this->angular_limit);
   this->get_parameter("angular_factor", this->angular_factor);
+  this->get_parameter("pivot_enabled", this->pivot_enabled);
+  this->get_parameter("pivot_linear_threshold", this->pivot_linear_threshold);
+  this->get_parameter("pivot_min_speed", this->pivot_min_speed);
+  this->get_parameter("min_drive_speed", this->min_drive_speed);
 
   this->d1 = hardware_distances[0];
   this->d2 = hardware_distances[1];
@@ -78,6 +99,24 @@ VelParserNode::VelParserNode() : rclcpp::Node("vel_parser_node") {
 void VelParserNode::callback(const geometry_msgs::msg::Twist::SharedPtr msg) {
 
   auto motors_command = rover_msgs::msg::MotorsCommand();
+
+  if (this->pivot_enabled &&
+      std::abs(msg->linear.x) < this->pivot_linear_threshold &&
+      std::abs(msg->angular.z) > 1e-3) {
+    std::vector<float> speeds, angles;
+    this->calculate_pivot(
+        std::clamp((float)msg->angular.z, -this->angular_limit, this->angular_limit),
+        speeds, angles);
+    std::vector<float> ticks = this->calculate_target_tick(angles);
+    for (unsigned i = 0; i < speeds.size(); i++) {
+      motors_command.drive_motor.push_back(int(speeds.at(i)) * this->speed_factor);
+    }
+    for (unsigned i = 0; i < ticks.size(); i++) {
+      motors_command.corner_motor.push_back(int(ticks.at(i)));
+    }
+    this->publisher->publish(motors_command);
+    return;
+  }
 
   // normalize speed and steering
   float linear = std::min((float)msg->linear.x, this->linear_limit);
@@ -99,6 +138,16 @@ void VelParserNode::callback(const geometry_msgs::msg::Twist::SharedPtr msg) {
       this->calculate_velocity(norm_speed, norm_steering);
   std::vector<float> new_ticks =
       this->calculate_target_tick(this->calculate_target_deg(norm_steering));
+
+  float fastest = 0.0f;
+  for (float v : new_speeds) {
+    fastest = std::max(fastest, std::abs(v));
+  }
+  if (fastest > 1e-3f && fastest < this->min_drive_speed) {
+    for (float &v : new_speeds) {
+      v *= this->min_drive_speed / fastest;
+    }
+  }
 
   // convert to int
   for (unsigned i = 0; i < new_speeds.size(); i++) {
@@ -205,6 +254,38 @@ std::vector<float> VelParserNode::calculate_velocity(float velocity,
 
   // Set the speeds between the range[-max_speed, +max_speed]
   return new_velocity;
+}
+
+// Turn in place about the rover centre. The corner wheels are steered tangent
+// to their circle around the centre and each wheel runs at a speed
+// proportional to its distance from it; the farthest wheel moves at
+// |angular| * r_max (m/s), normalized like the linear speed.
+//
+// Conventions of this node: wheel order front, middle, back, left side first;
+// driving ahead is + on the left and - on the right; a steering angle is + to
+// the right (turning left puts the front wheels negative). angular > 0 is a
+// counter-clockwise (left) turn: all six wheels then run negative, clockwise
+// all positive. Steering beyond the servo range is clamped by deg_to_tick.
+void VelParserNode::calculate_pivot(float angular, std::vector<float> &speeds,
+                                    std::vector<float> &angles) {
+  const float r_front = std::hypot(this->d1, this->d3); // [cm]
+  const float r_back = std::hypot(this->d1, this->d2);
+  const float r_mid = this->d4;
+  const float r_max = std::max({r_front, r_back, r_mid});
+
+  float norm = std::abs(angular) * (r_max / 100.0f) / this->linear_limit * 100.0f;
+  norm = std::min(std::max(norm, this->pivot_min_speed), 100.0f);
+  const float sign = angular > 0 ? -1.0f : 1.0f;
+
+  const float v_front = sign * norm * r_front / r_max;
+  const float v_mid = sign * norm * r_mid / r_max;
+  const float v_back = sign * norm * r_back / r_max;
+  speeds = {v_front, v_mid, v_back, v_front, v_mid, v_back};
+
+  const float a_front = this->radians_to_deg(atan(this->d3 / this->d1));
+  const float a_back = this->radians_to_deg(atan(this->d2 / this->d1));
+  // front-left, front-right, back-left, back-right
+  angles = {a_front, -a_front, -a_back, a_back};
 }
 
 std::vector<float> VelParserNode::calculate_target_deg(float radius) {

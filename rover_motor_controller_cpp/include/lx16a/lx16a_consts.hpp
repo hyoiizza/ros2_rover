@@ -66,17 +66,17 @@ constexpr uint8_t SERVO_ERROR_OVER_VOLTAGE = 2;
 constexpr uint8_t SERVO_ERROR_LOCKED_ROTOR = 4;
 
 // SERVOS
-constexpr uint8_t MOTOR_LEFT_FRONT = 1;
-constexpr uint8_t MOTOR_LEFT_MIDDLE = 2;
-constexpr uint8_t MOTOR_LEFT_BACK = 3;
-constexpr uint8_t MOTOR_RIGHT_FRONT = 4;
-constexpr uint8_t MOTOR_RIGHT_MIDDLE = 5;
-constexpr uint8_t MOTOR_RIGHT_BACK = 6;
+constexpr uint8_t SERVO_RIGHT_BACK = 9;
+constexpr uint8_t SERVO_LEFT_BACK = 4;
+constexpr uint8_t SERVO_RIGHT_FRONT = 6;
+constexpr uint8_t SERVO_LEFT_FRONT = 1;
 
-constexpr uint8_t SERVO_LEFT_FRONT = 7;
-constexpr uint8_t SERVO_RIGHT_FRONT = 8;
-constexpr uint8_t SERVO_LEFT_BACK = 9;
-constexpr uint8_t SERVO_RIGHT_BACK = 10;
+constexpr uint8_t MOTOR_RIGHT_BACK = 10;
+constexpr uint8_t MOTOR_RIGHT_MIDDLE = 8;
+constexpr uint8_t MOTOR_RIGHT_FRONT = 7;
+constexpr uint8_t MOTOR_LEFT_BACK = 5;
+constexpr uint8_t MOTOR_LEFT_MIDDLE = 3;
+constexpr uint8_t MOTOR_LEFT_FRONT = 2;
 
 } // namespace lx16a
 #endif

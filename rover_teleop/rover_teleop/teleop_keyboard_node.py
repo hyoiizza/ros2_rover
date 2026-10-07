@@ -20,127 +20,153 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+"""Keyboard teleop for the rover.
+
+Press w/x to start driving and keep driving until s is pressed. The command
+is published continuously while the node is running, so terminal key
+auto-repeat does not affect the rover's motion.
+
+Steering is different on purpose: a/d nudge the corner servos and the setting
+STAYS until you change it. A terminal delivers one character at a time, so
+"hold w and a together" is impossible; persistent steering is what lets you
+drive an arc - set the steering, then hold the throttle.
+
+Speeds are normalized, NOT m/s. rover_motor_controller's vel_parser_node maps
+linear.x in [-1, 1] onto the LX-16A duty range [-1000, 1000], so speed:=1.0 is
+already full throttle.
+"""
 
 import sys
-import geometry_msgs.msg
-import rclpy
+import select
 import termios
 import tty
 
+import geometry_msgs.msg
+import rclpy
 
-msg = """
-This node takes keypresses from the keyboard and publishes them
-as Twist messages.
+
+BANNER = """
+Rover keyboard teleop
 ---------------------------
-Moving around:
-        w     
-   a    s    d
-        x     
+        w            w / x : drive forward / back
+   a    s    d       a / d : steer left / right (stays until changed)
+        x            s     : stop and centre the steering
+
+   q / z : speed  +/- 10%
+   e / c : steering range +/- 10%
+
+   CTRL-C to quit
 ---------------------------
 """
 
 
-move_bindings = {
-    "a": (0, 0, 0, 1),
-    "w": (1, 0, 0, 0),
-    "s": (0, 0, 0, 0),
-    "d": (0, 0, 0, -1),
-    "x": (-1, 0, 0, 0),
-}
-
-
-def getKey(settings):
-    tty.setraw(sys.stdin.fileno())
-    key = sys.stdin.read(1)
-    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
-    return key
-
-
-def saveTerminalSettings():
+def save_terminal_settings():
     return termios.tcgetattr(sys.stdin)
 
 
-def restoreTerminalSettings(old_settings):
+def restore_terminal_settings(old_settings):
     termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
 
 
-def vels(x, z):
-    return "currently:\tspeed %s\tturn %s " % (round(x, 2), round(z, 2))
+def read_keys():
+    """Drain every character waiting on stdin, without blocking.
+
+    A held key queues up repeats faster than the publish loop runs; draining
+    the whole buffer each tick keeps the rover from lagging behind the keys.
+    """
+
+    keys = []
+
+    while select.select([sys.stdin], [], [], 0.0)[0]:
+        char = sys.stdin.read(1)
+
+        if not char:
+            break
+
+        keys.append(char)
+
+    return keys
 
 
-def limit(value, l):
-    if value > l:
-        return l
-
-    elif value < -l:
-        return -l
-
-    else:
-        return value
+def clamp(value, limit):
+    return max(-limit, min(limit, value))
 
 
 def main():
-    settings = saveTerminalSettings()
+    settings = save_terminal_settings()
+    # cbreak, not raw: characters arrive without waiting for Enter and are not
+    # echoed, but Ctrl-C still raises KeyboardInterrupt and print() still gets
+    # proper newlines.
+    tty.setcbreak(sys.stdin.fileno())
 
     rclpy.init()
-
     node = rclpy.create_node("teleop_keyboard_node")
+
+    # Normalized, not m/s: vel_parser_node maps [-1, 1] onto the LX-16A duty
+    # range. 1.0 is full throttle.
+    node.declare_parameter("speed", 0.3)
+    node.declare_parameter("turn", 0.5)
+    node.declare_parameter("publish_rate", 20.0)
+    node.declare_parameter("steer_increment", 0.2)
+
+    speed = node.get_parameter("speed").value
+    turn = node.get_parameter("turn").value
+    publish_rate = node.get_parameter("publish_rate").value
+    steer_increment = node.get_parameter("steer_increment").value
+
     pub = node.create_publisher(geometry_msgs.msg.Twist, "cmd_vel", 10)
 
-    x = 0.0
-    th = 0.0
-    x_factor = 0.1
-    th_factor = 0.1
+    period = 1.0 / publish_rate
+    drive = 0.0  # -1, 0 or +1, stays active until the stop key is pressed
+    steering = 0.0  # persists until changed
 
-    status = 0
+    def status():
+        return f"speed {speed:.2f}\tturn {turn:.2f}\tsteering {steering:+.2f}"
 
     try:
-        print(msg)
-        print(vels(x, th))
+        print(BANNER)
+        print(status())
 
-        while True:
-            key = getKey(settings)
-            if key in move_bindings.keys():
+        while rclpy.ok():
+            for key in read_keys():
+                if key == "\x03":
+                    raise KeyboardInterrupt
 
-                x = limit(x + move_bindings[key][0] * x_factor, 1.0)
-                th = limit(th + move_bindings[key][3] * th_factor, 1.0)
-
-                if 1 not in move_bindings[key] and -1 not in move_bindings[key]:
-                    x = 0.0
-                    th = 0.0
-
-                if status == 14:
-                    print(msg)
-                status = (status + 1) % 15
-
-                print(vels(x, th))
-
-            elif key == "\x03":
-                break
+                if key == "w":
+                    drive = 1.0
+                elif key == "x":
+                    drive = -1.0
+                elif key == "a":
+                    steering = clamp(steering + steer_increment, 1.0)
+                    print(status())
+                elif key == "d":
+                    steering = clamp(steering - steer_increment, 1.0)
+                    print(status())
+                elif key == "s":
+                    drive = 0.0
+                    steering = 0.0
+                    print(status())
+                elif key in ("q", "z"):
+                    speed = clamp(speed * (1.1 if key == "q" else 0.9), 1.0)
+                    print(status())
+                elif key in ("e", "c"):
+                    turn = clamp(turn * (1.1 if key == "e" else 0.9), 1.0)
+                    print(status())
 
             twist = geometry_msgs.msg.Twist()
-            twist.linear.x = x
-            twist.linear.y = 0.0
-            twist.linear.z = 0.0
-            twist.angular.x = 0.0
-            twist.angular.y = 0.0
-            twist.angular.z = th
+            twist.linear.x = drive * speed
+            twist.angular.z = steering * turn
             pub.publish(twist)
 
-    except Exception as e:
-        print(e)
+            rclpy.spin_once(node, timeout_sec=period)
+
+    except (KeyboardInterrupt, Exception) as e:
+        if not isinstance(e, KeyboardInterrupt):
+            print(e)
 
     finally:
-        twist = geometry_msgs.msg.Twist()
-        twist.linear.x = 0.0
-        twist.linear.y = 0.0
-        twist.linear.z = 0.0
-        twist.angular.x = 0.0
-        twist.angular.y = 0.0
-        twist.angular.z = 0.0
-        pub.publish(twist)
-
-        restoreTerminalSettings(settings)
+        pub.publish(geometry_msgs.msg.Twist())
+        restore_terminal_settings(settings)
 
 
 if __name__ == "__main__":

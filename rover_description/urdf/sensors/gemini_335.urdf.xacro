@@ -1,0 +1,204 @@
+<?xml version="1.0" ?>
+
+<!-- # MIT License
+
+# Copyright (c) 2023  Miguel Ángel González Santamarta
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE. -->
+<!-- Orbbec Gemini 335 (stereo depth, 90x25x30 mm, 50 mm baseline)
+     Depth FOV 90x65 deg, RGB FOV 86x55 deg, depth range 0.1-20 m.
+
+     The frame tree mirrors the OrbbecSDK_ROS2 wrapper naming so that the same
+     TF names are valid on the real robot and in Gazebo:
+
+       ${prefix}_link                 (= left IR / depth sensor origin)
+        |- ${prefix}_depth_frame -> ${prefix}_depth_optical_frame
+        |- ${prefix}_color_frame -> ${prefix}_color_optical_frame
+
+     Because these frames are published here by robot_state_publisher, the
+     orbbec_camera node must be launched with publish_tf:=false (see
+     rover_bringup/launch/gemini_335.launch.py) or TF will get two publishers
+     for the same edges. The color/depth offset below is the nominal mechanical
+     value; with depth_registration:=true the depth image is resampled into the
+     color frame anyway, so the residual error is negligible.
+
+     Gazebo Classic version: libgazebo_ros_camera on a "depth" sensor publishes
+     ~/image_raw, ~/camera_info, ~/depth/image_raw, ~/depth/camera_info and
+     ~/points. They are remapped below to the Orbbec topic names so the same
+     names work in simulation and on hardware. -->
+<robot name="sensor_gemini_335" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="sensor_gemini_335" params="prefix parent *origin
+                                                width:=848 height:=480 fps:=30
+                                                hfov:=1.50098 near:=0.1 far:=20.0">
+
+    <xacro:property name="half_pi" value="1.5707963267948966" />
+    <!-- Left IR to RGB offset along the module (RGB sits to the right) -->
+    <xacro:property name="color_offset_y" value="-0.025" />
+
+    <joint name="${prefix}_joint" type="fixed">
+      <xacro:insert_block name="origin" />
+      <parent link="${parent}" />
+      <child link="${prefix}_link" />
+    </joint>
+
+    <link name="${prefix}_link">
+      <visual>
+        <origin xyz="0 ${-color_offset_y} 0" rpy="0 0 0" />
+        <geometry>
+          <box size="0.025 0.090 0.030" />
+        </geometry>
+        <material name="dark_gray" />
+      </visual>
+      <collision>
+        <origin xyz="0 ${-color_offset_y} 0" rpy="0 0 0" />
+        <geometry>
+          <box size="0.025 0.090 0.030" />
+        </geometry>
+      </collision>
+      <inertial>
+        <mass value="0.055" />
+        <origin xyz="0 ${-color_offset_y} 0" rpy="0 0 0" />
+        <inertia ixx="4.2e-5" ixy="0" ixz="0" iyy="6.3e-6" iyz="0" izz="3.8e-5" />
+      </inertial>
+    </link>
+
+    <gazebo reference="${prefix}_link">
+      <material>Gazebo/DarkGrey</material>
+    </gazebo>
+
+    <!-- Depth sensor frames -->
+    <joint name="${prefix}_depth_joint" type="fixed">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <parent link="${prefix}_link" />
+      <child link="${prefix}_depth_frame" />
+    </joint>
+    <link name="${prefix}_depth_frame">
+      <inertial>
+        <mass value="0.001" />
+        <origin xyz="0 0 0" />
+        <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6" />
+      </inertial>
+    </link>
+
+    <joint name="${prefix}_depth_optical_joint" type="fixed">
+      <origin xyz="0 0 0" rpy="${-half_pi} 0 ${-half_pi}" />
+      <parent link="${prefix}_depth_frame" />
+      <child link="${prefix}_depth_optical_frame" />
+    </joint>
+    <link name="${prefix}_depth_optical_frame">
+      <inertial>
+        <mass value="0.001" />
+        <origin xyz="0 0 0" />
+        <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6" />
+      </inertial>
+    </link>
+
+    <!-- Color sensor frames -->
+    <joint name="${prefix}_color_joint" type="fixed">
+      <origin xyz="0 ${color_offset_y} 0" rpy="0 0 0" />
+      <parent link="${prefix}_link" />
+      <child link="${prefix}_color_frame" />
+    </joint>
+    <link name="${prefix}_color_frame">
+      <inertial>
+        <mass value="0.001" />
+        <origin xyz="0 0 0" />
+        <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6" />
+      </inertial>
+    </link>
+
+    <joint name="${prefix}_color_optical_joint" type="fixed">
+      <origin xyz="0 0 0" rpy="${-half_pi} 0 ${-half_pi}" />
+      <parent link="${prefix}_color_frame" />
+      <child link="${prefix}_color_optical_frame" />
+    </joint>
+    <link name="${prefix}_color_optical_frame">
+      <inertial>
+        <mass value="0.001" />
+        <origin xyz="0 0 0" />
+        <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6" />
+      </inertial>
+    </link>
+
+    <!-- Gazebo publishes a single RGBD stream; it stands in for the real camera
+         running with depth_registration:=true, i.e. depth already aligned to
+         the color frame. -->
+    <gazebo reference="${prefix}_link">
+      <sensor name="gemini_335" type="depth">
+        <pose>0 ${color_offset_y} 0 0 0 0</pose>
+        <always_on>true</always_on>
+        <visualize>true</visualize>
+        <update_rate>${fps}</update_rate>
+        <camera>
+          <!-- RGB FOV 86 deg horizontal; 848x480 gives ~55 deg vertical -->
+          <horizontal_fov>${hfov}</horizontal_fov>
+          <image>
+            <format>B8G8R8</format>
+            <width>${width}</width>
+            <height>${height}</height>
+          </image>
+          <clip>
+            <near>${near}</near>
+            <far>${far}</far>
+          </clip>
+        </camera>
+        <plugin name="${prefix}_controller" filename="libgazebo_ros_camera.so">
+          <ros>
+            <!-- Match the OrbbecSDK_ROS2 topic layout -->
+            <remapping>~/image_raw:=/camera/color/image_raw</remapping>
+            <remapping>~/camera_info:=/camera/color/camera_info</remapping>
+            <remapping>~/depth/image_raw:=/camera/depth/image_raw</remapping>
+            <remapping>~/depth/camera_info:=/camera/depth/camera_info</remapping>
+            <remapping>~/points:=/camera/depth/points</remapping>
+            <qos>
+              <topic name="/camera/color/image_raw">
+                <publisher>
+                  <reliability>best_effort</reliability>
+                </publisher>
+              </topic>
+              <topic name="/camera/color/camera_info">
+                <publisher>
+                  <reliability>best_effort</reliability>
+                </publisher>
+              </topic>
+              <topic name="/camera/depth/image_raw">
+                <publisher>
+                  <reliability>best_effort</reliability>
+                </publisher>
+              </topic>
+              <topic name="/camera/depth/camera_info">
+                <publisher>
+                  <reliability>best_effort</reliability>
+                </publisher>
+              </topic>
+              <topic name="/camera/depth/points">
+                <publisher>
+                  <reliability>best_effort</reliability>
+                </publisher>
+              </topic>
+            </qos>
+          </ros>
+          <frame_name>${prefix}_color_optical_frame</frame_name>
+          <min_depth>${near}</min_depth>
+          <max_depth>${far}</max_depth>
+        </plugin>
+      </sensor>
+    </gazebo>
+  </xacro:macro>
+</robot>

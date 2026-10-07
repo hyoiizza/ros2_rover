@@ -46,6 +46,8 @@ public:
   std::vector<float> calculate_velocity(float velocity, float radius);
   std::vector<float> calculate_target_deg(float radius);
   std::vector<float> calculate_target_tick(std::vector<float> target_angles);
+  void calculate_pivot(float angular, std::vector<float> &speeds,
+                       std::vector<float> &angles);
 
 private:
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr subscription;
@@ -61,6 +63,10 @@ private:
   float linear_limit;
   float angular_limit;
   float angular_factor;
+  bool pivot_enabled;
+  float pivot_linear_threshold;
+  float pivot_min_speed;
+  float min_drive_speed;
 };
 
 } // namespace motor_controller

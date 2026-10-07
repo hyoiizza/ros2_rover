@@ -1,0 +1,22 @@
+# rf2o_laser_odometry - planar odometry estimated from consecutive RPLIDAR C1
+# scans (range flow constraint). This is the rover's ONLY odometry source:
+# the LX-16A servos give no usable wheel feedback (SERVO_OR_MOTOR_MODE_READ
+# echoes the commanded speed, and the position pot is only valid over 240 deg),
+# and /joint_states exists in Gazebo only.
+#
+# rf2o feeds the EKF, which owns the odom -> base_link transform. rf2o must
+# therefore NOT publish TF itself.
+rf2o_laser_odometry:
+  ros__parameters:
+    laser_scan_topic: "/scan"
+    odom_topic: "/odom_rf2o"
+    # The EKF (robot_localization) publishes odom -> base_link. Two publishers
+    # on the same edge would fight.
+    publish_tf: false
+    base_frame_id: "base_link"
+    odom_frame_id: "odom"
+    init_pose_from_topic: ""
+    # RPLIDAR C1 spins at 10 Hz; running faster than the scan rate just
+    # reprocesses the same scan.
+    freq: 10.0
+    verbose: false

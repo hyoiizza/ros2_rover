@@ -24,6 +24,7 @@ setup(
         "console_scripts": [
             "controller_node = rover_motor_controller.controller_node_main:main",
             "vel_parser_node = rover_motor_controller.vel_parser_node_main:main",
+            "check_motors = rover_motor_controller.check_motors_main:main",
         ],
     },
 )

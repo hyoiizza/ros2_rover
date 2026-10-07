@@ -1,0 +1,62 @@
+# Stable device names for the rover's USB devices.
+#
+# Install with:
+#   sudo cp 99-rover-sensors.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+#
+# (rover_service/install.sh does this for you.)
+#
+# WHY THIS FILE EXISTS
+# --------------------
+# The Jetson Orin Nano carries three USB devices, two of which are USB-serial:
+#
+#   * Slamtec RPLIDAR C1        -> /dev/ttyUSB*
+#   * LX-16A BusLinker board    -> /dev/ttyUSB*
+#   * Orbbec Gemini 335         -> libusb/UVC, no /dev/tty* node at all
+#
+# /dev/ttyUSB* numbers are handed out in enumeration order, NOT by physical
+# USB port. With two USB-serial devices the numbering can swap between boots,
+# which would point the lidar driver at the servo bus (or worse, the motor
+# controller at the lidar). The symlinks below remove that ambiguity.
+#
+# Run scripts/list_usb_serial.sh to see the VID:PID and serial of everything
+# currently plugged in, and to get ready-to-paste rules for your own boards.
+
+# --- Slamtec RPLIDAR C1 -> /dev/rplidar ---------------------------------
+# The C1 ships with a CP2102 USB-to-UART adapter (10c4:ea60).
+KERNEL=="ttyUSB*", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", MODE:="0666", GROUP:="dialout", SYMLINK+="rplidar"
+
+# --- LX-16A BusLinker -> /dev/lx16a -------------------------------------
+# Hiwonder debug boards normally use a CH340 (1a86:7523). Some batches ship
+# with a CP2102 or an FTDI chip instead - CHECK YOURS with
+# scripts/list_usb_serial.sh before trusting this line.
+KERNEL=="ttyUSB*", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", MODE:="0666", GROUP:="dialout", SYMLINK+="lx16a"
+# FTDI variant (0403:6001), harmless if no such device is present:
+KERNEL=="ttyUSB*", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", MODE:="0666", GROUP:="dialout", SYMLINK+="lx16a"
+
+# --- If both boards use the SAME chip -----------------------------------
+# Then the two rules above would both match both devices and the symlinks
+# become random again. In that case delete them and match on the adapter's
+# serial number instead (list_usb_serial.sh prints it):
+#
+# KERNEL=="ttyUSB*", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", ATTRS{serial}=="0001", SYMLINK+="rplidar"
+# KERNEL=="ttyUSB*", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", ATTRS{serial}=="0002", SYMLINK+="lx16a"
+#
+# Some CP2102/CH340 adapters report no serial number at all. Then fall back to
+# the physical USB port (stable as long as the cable stays in the same socket;
+# find the path with: udevadm info -q path -n /dev/ttyUSB0):
+#
+# KERNEL=="ttyUSB*", KERNELS=="1-2.1", SYMLINK+="rplidar"
+
+# --- Orbbec Gemini 335 --------------------------------------------------
+# No symlink needed: the camera has no serial device node. The orbbec_camera
+# package installs its own permission rules with
+#   ros2 run orbbec_camera install_udev_rules.sh
+# and the device is picked by serial_number/usb_port in config/gemini_335.yaml.
+# NOTE: plug it into a USB 3.x port - 848x480 color + depth at 30 fps will not
+# fit through USB 2.0.
+
+# --- Adafruit BNO085 ----------------------------------------------------
+# Reached over I2C (/dev/i2c-*), whose numbering is fixed by the SoC bus, not
+# by enumeration order. Just make sure the user is in the i2c group:
+#   sudo usermod -aG i2c $USER

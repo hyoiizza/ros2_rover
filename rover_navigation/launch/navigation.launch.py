@@ -63,7 +63,21 @@ def generate_launch_description():
     # https://github.com/ros/robot_state_publisher/pull/30
     # TODO(orduno) Substitute with `PushNodeRemapping`
     #              https://github.com/ros2/launch_ros/issues/56
-    remappings = [("/tf", "tf"), ("/tf_static", "tf_static"), ("/cmd_vel", cmd_vel_topic)]
+    #
+    # use_global_tf (multi-robot, see rover_multi): every robot shares the
+    # global /tf tree with "<robot>/" frame prefixes, so /tf is NOT pulled into
+    # the namespace, and velocity commands stay inside it (relative names).
+    use_global_tf = LaunchConfiguration("use_global_tf")
+    global_tf = ["'", use_global_tf, "'.lower() in ('true', '1')"]
+    tf_topic = PythonExpression(["'/tf' if "] + global_tf + [" else 'tf'"])
+    tf_static_topic = PythonExpression(["'/tf_static' if "] + global_tf + [" else 'tf_static'"])
+    cmd_vel_key = PythonExpression(["'cmd_vel' if "] + global_tf + [" else '/cmd_vel'"])
+    cmd_vel_out = PythonExpression(["'cmd_vel' if "] + global_tf + [" else '/cmd_vel'"])
+    remappings = [("/tf", tf_topic), ("/tf_static", tf_static_topic), (cmd_vel_key, cmd_vel_topic)]
+    velocity_smoother_remappings = [
+        ("cmd_vel", cmd_vel_topic),
+        ("cmd_vel_smoothed", cmd_vel_out),
+    ]
 
     # Create our own temporary YAML files that include substitutions
     param_substitutions = {
@@ -83,6 +97,12 @@ def generate_launch_description():
 
     declare_namespace_cmd = DeclareLaunchArgument(
         "namespace", default_value="", description="Top-level namespace"
+    )
+
+    declare_use_global_tf_cmd = DeclareLaunchArgument(
+        "use_global_tf",
+        default_value="False",
+        description="Multi-robot: use the shared /tf tree and keep cmd_vel in the namespace",
     )
 
     declare_use_sim_time_cmd = DeclareLaunchArgument(
@@ -123,7 +143,7 @@ def generate_launch_description():
 
     cmd_vel_topic_cmd = DeclareLaunchArgument(
         "cmd_vel_topic",
-        default_value="/cmd_vel",
+        default_value="/cmd_vel_raw",
         description="cmd_vel topic (for remmaping)",
     )
 
@@ -208,6 +228,11 @@ def generate_launch_description():
                     {"use_sim_time": use_sim_time},
                     {"autostart": autostart},
                     {"node_names": lifecycle_nodes},
+                    # Default 4 s: under the full experiment load (SLAM + VLM + YOLO) the controller
+                    # answered too late and bringup was aborted (2026-10-02). Keep retrying instead.
+                    {"bond_timeout": 20.0},
+                    {"attempt_respawn_reconnection": True},
+                    {"bond_respawn_max_duration": 30.0},
                 ],
             ),
             Node(
@@ -218,6 +243,7 @@ def generate_launch_description():
                 respawn=use_respawn,
                 respawn_delay=2.0,
                 parameters=[configured_params],
+                remappings=velocity_smoother_remappings,
             ),
         ],
     )
@@ -285,6 +311,7 @@ def generate_launch_description():
                 plugin="nav2_velocity_smoother::VelocitySmoother",
                 name="velocity_smoother",
                 parameters=[configured_params],
+                remappings=velocity_smoother_remappings,
             ),
         ],
     )
@@ -297,6 +324,7 @@ def generate_launch_description():
 
     # Declare the launch options
     ld.add_action(declare_namespace_cmd)
+    ld.add_action(declare_use_global_tf_cmd)
     ld.add_action(declare_use_sim_time_cmd)
     ld.add_action(declare_params_file_cmd)
     ld.add_action(declare_autostart_cmd)

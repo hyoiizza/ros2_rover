@@ -10,6 +10,15 @@
   <depend>rtabmap</depend>
   <depend>rtabmap_ros</depend>
   <depend>robot_localization</depend>
+  <!-- 2D lidar SLAM (driving map) -->
+  <depend>slam_toolbox</depend>
+  <!-- laser odometry: the rover has no wheel encoders -->
+  <depend>rf2o_laser_odometry</depend>
+  <depend>nav2_common</depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
   <export>
     <build_type>ament_cmake</build_type>
   </export>

@@ -99,6 +99,22 @@ def generate_launch_description():
         description="Nav2 controller (RPP or TEB)",
     )
 
+    # Empty => slam_toolbox maps live. A path => map_server + AMCL navigate
+    # that saved map and slam_toolbox stays off.
+    map_yaml_file = LaunchConfiguration("map")
+    map_cmd = DeclareLaunchArgument(
+        "map",
+        default_value="",
+        description="Full path to a saved map yaml. Empty means SLAM builds the map.",
+    )
+
+    use_vision_map = LaunchConfiguration("use_vision_map")
+    use_vision_map_cmd = DeclareLaunchArgument(
+        "use_vision_map",
+        default_value="False",
+        description="Also run rtabmap on the RGB-D camera to build a vision map",
+    )
+
     launch_odometry = LaunchConfiguration("launch_odometry")
     launch_odometry_cmd = DeclareLaunchArgument(
         "launch_odometry",
@@ -139,7 +155,13 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             os.path.join(pkg_rover_localization, "launch", "localization.launch.py")
         ),
-        launch_arguments={"use_sim_time": "True"}.items(),
+        launch_arguments={
+            "use_sim_time": "True",
+            # No slam_toolbox when a saved map is being served: AMCL owns
+            # map -> odom in that case.
+            "slam": PythonExpression(["'off' if '", map_yaml_file, "' else 'mapping'"]),
+            "use_vision_map": use_vision_map,
+        }.items(),
     )
 
     navigation_cmd = IncludeLaunchDescription(
@@ -150,6 +172,7 @@ def generate_launch_description():
             "use_sim_time": "True",
             "planner": nav2_planner,
             "controller": nav2_controller,
+            "map": map_yaml_file,
         }.items(),
     )
 
@@ -190,6 +213,8 @@ def generate_launch_description():
     ld.add_action(initial_pose_yaw_cmd)
     ld.add_action(nav2_planner_cmd)
     ld.add_action(nav2_controller_cmd)
+    ld.add_action(map_cmd)
+    ld.add_action(use_vision_map_cmd)
     ld.add_action(launch_odometry_cmd)
 
     ld.add_action(gazebo_client_cmd)

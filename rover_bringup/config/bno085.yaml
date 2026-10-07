@@ -1,0 +1,36 @@
+# Adafruit BNO085 9-DOF Orientation IMU (CEVA/Hillcrest BNO08x)
+# driven by the bno08x_driver node over I2C (STEMMA QT / Qwiic).
+#
+# The driver publishes sensor_msgs/Imu on /imu and
+# sensor_msgs/MagneticField on /mag.
+bno08x_driver:
+  ros__parameters:
+    # Must match the IMU link in rover_description/urdf/sensors/bno085.urdf.xacro
+    frame_id: "imu_link"
+
+    # Only one interface may be enabled at a time.
+    i2c:
+      enabled: true
+      # Jetson Orin Nano 40-pin header, pins 3 (SDA) / 5 (SCL) => /dev/i2c-7.
+      # Pins 27/28 are /dev/i2c-1 instead; a Raspberry Pi would be /dev/i2c-1.
+      # Confirm which bus the BNO085 is on before trusting this:
+      #   sudo i2cdetect -y -r 7    # 0x4a should show up
+      bus: "/dev/i2c-7"
+      # 0x4A by default; 0x4B when the ADR pin is pulled high.
+      address: "0x4A"
+
+    uart:
+      enabled: false
+      device: "/dev/ttyACM0"
+
+    spi:
+      enabled: false
+      device: "/dev/spidev0.0"
+
+    publish:
+      imu:
+        enabled: true
+        rate: 100 # Hz, matches the update_rate used in the URDF
+      magnetic_field:
+        enabled: true
+        rate: 100 # Hz, max 100

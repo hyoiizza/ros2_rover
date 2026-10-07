@@ -7,7 +7,10 @@ ekf_filter_node:
     # sensor_timeout: 20.0
     use_sim_time: false
 
-    two_d_mode: false
+    # rf2o and slam_toolbox are both planar, and Nav2 navigates in 2D, so keep
+    # the filter on the ground plane. Set to false (and re-enable the imu0
+    # roll/pitch entries below) if you later want the full 3D pose on terrain.
+    two_d_mode: true
 
     # transform_time_offset: 0.25
     # transform_timeout: 3.0
@@ -24,22 +27,28 @@ ekf_filter_node:
     base_link_frame: base_link
     world_frame: odom
 
-    odom0: odom_rgbd
+    # Laser odometry from rf2o (see config/rf2o.yaml). The rover has no wheel
+    # encoders, and the RGB-D camera is reserved for the vision map, so this is
+    # the only translational input the filter gets.
+    odom0: odom_rf2o
     odom0_config: [
         # position
         true,
         true,
         true,
 
-        # orientation
+        # orientation - yaw off (was true): the IMU gyro owns heading. rf2o
+        # over-counted rotation by ~4% vs the gyro and, with its zero covariance,
+        # the filter followed it, which smeared the rtabmap walls.
         false,
         false,
-        true,
+        false,
 
-        # lineal vel
-        true,
-        true,
-        true,
+        # lineal vel - off: rf2o's twist is in the laser frame (mounted yaw=pi),
+        # so its sign is inverted vs base_link; x/y come from the differential pose.
+        false,
+        false,
+        false,
 
         # angular vel
         false,
@@ -58,6 +67,8 @@ ekf_filter_node:
     # odom0_pose_rejection_threshold: 5.0
     # odom0_twist_rejection_threshold: 1.0
 
+    # Optional. Nothing blocks if /imu never publishes: the filter runs on
+    # odom0 alone, at the cost of yaw drift that nothing corrects.
     imu0: imu
     imu0_config: [
         # position
@@ -70,10 +81,11 @@ ekf_filter_node:
         true,
         false,
 
-        # lineal vel
-        true,
-        true,
-        true,
+        # lineal vel - sensor_msgs/Imu carries no linear velocity at all, so
+        # these must stay false; they were true, which fed the filter nothing.
+        false,
+        false,
+        false,
 
         # angular vel
         true,
